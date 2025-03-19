@@ -15,12 +15,15 @@ const errorMiddleware = (
   err.message = err.message || "Internal Server Error";
   err.statusCode = err.statusCode || 500;
 
-  console.log(err.message);
+  console.error(err);
 
   if (err instanceof PrismaClientKnownRequestError) {
     if (err.code === "P2002") {
       const message = `Duplicate value entered for field: ${err.meta?.target}. Please use a different value.`;
       err = new ErrorHandler(message, 400);
+    }
+    if (err.code === "P2025") {
+      err = new ErrorHandler("Resource not found.", 404);
     }
   }
 
@@ -31,14 +34,9 @@ const errorMiddleware = (
     );
   }
 
-  if (err instanceof PrismaClientKnownRequestError && err.code === "P2025") {
-    err = new ErrorHandler("Resource not found.", 404);
-  }
-
   if (err.name === "JsonWebTokenError") {
     err = new ErrorHandler("Invalid token. Please log in again.", 401);
   }
-
   if (err.name === "TokenExpiredError") {
     err = new ErrorHandler("Token expired. Please log in again.", 401);
   }
@@ -47,7 +45,7 @@ const errorMiddleware = (
     err = new ErrorHandler("Invalid JSON syntax in request body.", 400);
   }
 
-  res.status(err.statusCode).json({
+  const response = {
     success: false,
     message:
       config.NODE_ENV === "production"
@@ -55,7 +53,10 @@ const errorMiddleware = (
           ? err.message
           : "Something went wrong!"
         : err.message,
-  });
+    ...(config.NODE_ENV !== "production" && { stack: err.stack }),
+  };
+
+  res.status(err.statusCode).json(response);
 };
 
 export default errorMiddleware;

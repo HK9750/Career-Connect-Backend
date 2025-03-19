@@ -32,11 +32,10 @@ export const register = async (
       String(newUser.id),
       newUser.role
     );
-    res
-      .status(201)
-      .json({ success: true, user: newUser, accessToken, refreshToken });
+    const { password: _, ...user } = newUser;
+    res.status(201).json({ success: true, user, accessToken, refreshToken });
   } catch (error: any) {
-    next(new ErrorHandler(error.message, 500));
+    return next(new ErrorHandler(error.message, 500));
   }
 };
 
@@ -56,6 +55,6 @@ export const login = async (
     );
     res.status(200).json({ success: true, user, accessToken, refreshToken });
   } catch (error: any) {
-    next(new ErrorHandler(error.message, 500));
+    return next(new ErrorHandler(error.message, 500));
   }
 };

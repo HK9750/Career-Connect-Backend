@@ -10,9 +10,14 @@ import errorMiddleware from "./middlewares/error-middleware";
 
 const app = express();
 
-app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(helmet());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -20,10 +25,10 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use("api/v1/auth", authRoutes);
-app.use("api/v1/resume", resumeRoutes);
-app.use("api/v1/job", jobRoutes);
-app.use("api/v1/review", reviewRoutes);
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/resume", resumeRoutes);
+app.use("/api/v1/job", jobRoutes);
+app.use("/api/v1/review", reviewRoutes);
 
 app.use(errorMiddleware);
 
