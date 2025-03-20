@@ -23,6 +23,8 @@ const config = {
 
   RESET_SECRET_EXPIRY: Number(process.env.RESET_SECRET_EXPIRY) || 300,
   RESET_SECRET: process.env.RESET_SECRET || "default_reset_secret",
+
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || "default_openai_api_key",
 };
 
 export default config;
