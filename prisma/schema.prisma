@@ -8,63 +8,92 @@ generator client {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  username     String
-  email        String       @unique
-  password     String
-  role         Role
-  resumes      Resume[]
-  reviews      Review[]
-  jobs         Job[]
-  applications Application[]
-  createdAt    DateTime     @default(now())
+  id            Int            @id @default(autoincrement())
+  username      String
+  email         String         @unique
+  password      String
+  role          Role
+  resumes       Resume[]
+  analyses      Analysis[]
+  jobs          Job[]
+  applications  Application[]
+  reviews       Review[]
+  createdAt     DateTime       @default(now())
 }
 
 model Resume {
-  id          Int          @id @default(autoincrement())
-  filePath    String
-  comment     String?
-  owner       User         @relation(fields: [ownerId], references: [id])
-  ownerId     Int
-  recruiterId Int?
-  reviews     Review[]
+  id           Int            @id @default(autoincrement())
+  filePath     String
+  owner        User           @relation(fields: [ownerId], references: [id])
+  ownerId      Int
+  analyses     Analysis[]
   applications Application[]
-  createdAt   DateTime     @default(now())
+  reviews      Review[]
+  createdAt    DateTime       @default(now())
 }
 
 model Job {
-  id          Int          @id @default(autoincrement())
-  title       String
-  description String
-  company     String
-  recruiter   User         @relation(fields: [recruiterId], references: [id])
-  recruiterId Int
+  id           Int            @id @default(autoincrement())
+  title        String
+  description  String
+  company      String
+  location     String?
+  tags         String[]
+  recruiter    User           @relation(fields: [recruiterId], references: [id])
+  recruiterId  Int
   applications Application[]
-  createdAt   DateTime     @default(now())
+  analyses     Analysis[]
+  createdAt    DateTime       @default(now())
+}
+
+model Analysis {
+  id          Int       @id @default(autoincrement())
+  resume      Resume    @relation(fields: [resumeId], references: [id])
+  resumeId    Int
+  job         Job?      @relation(fields: [jobId], references: [id])
+  jobId       Int?
+  jdText      String?
+  score       Float?
+  feedback    String?
+  applicant   User      @relation(fields: [applicantId], references: [id])
+  applicantId Int
+  createdAt   DateTime  @default(now())
+
+  Application Application[]
 }
 
 model Application {
-  id          Int      @id @default(autoincrement())
-  resume      Resume   @relation(fields: [resumeId], references: [id])
-  resumeId    Int
-  job         Job      @relation(fields: [jobId], references: [id])
-  jobId       Int
-  applicant   User     @relation(fields: [applicantId], references: [id])
-  applicantId Int
-  createdAt   DateTime @default(now())
+  id           Int                 @id @default(autoincrement())
+  resume       Resume              @relation(fields: [resumeId], references: [id])
+  resumeId     Int
+  job          Job                 @relation(fields: [jobId], references: [id])
+  jobId        Int
+  applicant    User                @relation(fields: [applicantId], references: [id])
+  applicantId  Int
+  analysis     Analysis?           @relation(fields: [analysisId], references: [id])
+  analysisId   Int?
+  status       ApplicationStatus   @default(APPLIED)
+  createdAt    DateTime            @default(now())
 }
 
 model Review {
-  id         Int      @id @default(autoincrement())
-  comment    String
-  resume     Resume   @relation(fields: [resumeId], references: [id])
-  resumeId   Int
-  reviewer   User     @relation(fields: [reviewerId], references: [id])
-  reviewerId Int
-  createdAt  DateTime @default(now())
+  id          Int       @id @default(autoincrement())
+  comment     String
+  resume      Resume    @relation(fields: [resumeId], references: [id])
+  resumeId    Int
+  reviewer    User      @relation(fields: [reviewerId], references: [id])
+  reviewerId  Int
+  createdAt   DateTime  @default(now())
 }
 
 enum Role {
-  STUDENT
+  CANDIDATE
   RECRUITER
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWED
+  ACCEPTED
+  REJECTED
 }

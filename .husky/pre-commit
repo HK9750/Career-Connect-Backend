@@ -1,0 +1,5 @@
+# Running formatting
+npm run format
+
+# All checks are passed
+echo '✅ Formatting Done. Committing... ✅'
