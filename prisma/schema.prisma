@@ -1,89 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id            Int            @id @default(autoincrement())
-  username      String
-  email         String         @unique
-  password      String
-  role          Role
-  resumes       Resume[]
-  analyses      Analysis[]
-  jobs          Job[]
-  applications  Application[]
-  reviews       Review[]
-  createdAt     DateTime       @default(now())
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  password     String
+  role         Role
+  createdAt    DateTime      @default(now())
+  username     String
+  analyses     Analysis[]
+  applications Application[]
+  jobs         Job[]
+  resumes      Resume[]
+  reviews      Review[]
 }
 
 model Resume {
-  id           Int            @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   filePath     String
-  owner        User           @relation(fields: [ownerId], references: [id])
+  title       String?
   ownerId      Int
+  createdAt    DateTime      @default(now())
   analyses     Analysis[]
   applications Application[]
+  owner        User          @relation(fields: [ownerId], references: [id])
   reviews      Review[]
-  createdAt    DateTime       @default(now())
 }
 
 model Job {
-  id           Int            @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   title        String
   description  String
+  createdAt    DateTime      @default(now())
   company      String
+  recruiterId  Int
   location     String?
   tags         String[]
-  recruiter    User           @relation(fields: [recruiterId], references: [id])
-  recruiterId  Int
-  applications Application[]
   analyses     Analysis[]
-  createdAt    DateTime       @default(now())
+  applications Application[]
+  recruiter    User          @relation(fields: [recruiterId], references: [id])
 }
 
 model Analysis {
-  id          Int       @id @default(autoincrement())
-  resume      Resume    @relation(fields: [resumeId], references: [id])
+  id          Int           @id @default(autoincrement())
   resumeId    Int
-  job         Job?      @relation(fields: [jobId], references: [id])
   jobId       Int?
   jdText      String?
   score       Float?
   feedback    String?
-  applicant   User      @relation(fields: [applicantId], references: [id])
   applicantId Int
-  createdAt   DateTime  @default(now())
-
+  createdAt   DateTime      @default(now())
+  applicant   User          @relation(fields: [applicantId], references: [id])
+  job         Job?          @relation(fields: [jobId], references: [id])
+  resume      Resume        @relation(fields: [resumeId], references: [id])
   Application Application[]
 }
 
 model Application {
-  id           Int                 @id @default(autoincrement())
-  resume       Resume              @relation(fields: [resumeId], references: [id])
-  resumeId     Int
-  job          Job                 @relation(fields: [jobId], references: [id])
-  jobId        Int
-  applicant    User                @relation(fields: [applicantId], references: [id])
-  applicantId  Int
-  analysis     Analysis?           @relation(fields: [analysisId], references: [id])
-  analysisId   Int?
-  status       ApplicationStatus   @default(APPLIED)
-  createdAt    DateTime            @default(now())
+  id          Int               @id @default(autoincrement())
+  resumeId    Int
+  jobId       Int
+  applicantId Int
+  createdAt   DateTime          @default(now())
+  analysisId  Int?
+  status      ApplicationStatus @default(APPLIED)
+  analysis    Analysis?         @relation(fields: [analysisId], references: [id])
+  applicant   User              @relation(fields: [applicantId], references: [id])
+  job         Job               @relation(fields: [jobId], references: [id])
+  resume      Resume            @relation(fields: [resumeId], references: [id])
 }
 
 model Review {
-  id          Int       @id @default(autoincrement())
-  comment     String
-  resume      Resume    @relation(fields: [resumeId], references: [id])
-  resumeId    Int
-  reviewer    User      @relation(fields: [reviewerId], references: [id])
-  reviewerId  Int
-  createdAt   DateTime  @default(now())
+  id         Int      @id @default(autoincrement())
+  comment    String
+  resumeId   Int
+  reviewerId Int
+  createdAt  DateTime @default(now())
+  resume     Resume   @relation(fields: [resumeId], references: [id])
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
 }
 
 enum Role {
