@@ -79,6 +79,7 @@ export const listApplicationsByApplicant = AsyncErrorHandler(
             include: { job: true, resume: true },
             orderBy: { createdAt: 'desc' },
         });
+        console.log('Applications By Applicant', applications);
         res.status(200).json({ success: true, applications });
     }
 );
@@ -94,6 +95,7 @@ export const listApplicationsByRecruiter = AsyncErrorHandler(
             include: { job: true, resume: true },
             orderBy: { createdAt: 'desc' },
         });
+        console.log('Applications By Recruiter', applications);
         res.status(200).json({ success: true, applications });
     }
 );
