@@ -53,7 +53,7 @@ model Analysis {
   jobId       Int?
   jdText      String?
   score       Float?
-  feedback    String?
+  feedback    Json?
   applicantId Int
   createdAt   DateTime      @default(now())
   applicant   User          @relation(fields: [applicantId], references: [id])

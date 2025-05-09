@@ -38,7 +38,11 @@ export const applyForJob = AsyncErrorHandler(
                 resumeId: resume.id,
             },
         });
-        res.status(201).json({ success: true, application });
+        res.status(201).json({
+            success: true,
+            application,
+            resumeId: resume.id,
+        });
     }
 );
 
@@ -92,7 +96,12 @@ export const listApplicationsByRecruiter = AsyncErrorHandler(
         }
         const applications = await prisma.application.findMany({
             where: { job: { recruiterId: Number(recruiterId) } },
-            include: { job: true, resume: true },
+            include: {
+                job: true,
+                resume: true,
+                applicant: true,
+                analysis: true,
+            },
             orderBy: { createdAt: 'desc' },
         });
         console.log('Applications By Recruiter', applications);
