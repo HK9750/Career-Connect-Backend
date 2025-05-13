@@ -7,7 +7,7 @@ declare global {
     namespace Express {
         interface Request {
             user?: {
-                id: string;
+                id: number;
                 role?: string;
             };
         }
@@ -27,7 +27,7 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
     }
     try {
         const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET) as {
-            id: string;
+            id: number;
             role: string;
         };
         req.user = { id: decoded.id, role: decoded.role };

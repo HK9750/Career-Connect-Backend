@@ -30,7 +30,6 @@ model Resume {
   analyses     Analysis[]
   applications Application[]
   owner        User          @relation(fields: [ownerId], references: [id])
-  reviews      Review[]
 }
 
 model Job {
@@ -62,28 +61,32 @@ model Analysis {
   Application Application[]
 }
 
-model Application {
-  id          Int               @id @default(autoincrement())
-  resumeId    Int
-  jobId       Int
-  applicantId Int
-  createdAt   DateTime          @default(now())
-  analysisId  Int?
-  status      ApplicationStatus @default(APPLIED)
-  analysis    Analysis?         @relation(fields: [analysisId], references: [id])
-  applicant   User              @relation(fields: [applicantId], references: [id])
-  job         Job               @relation(fields: [jobId], references: [id])
-  resume      Resume            @relation(fields: [resumeId], references: [id])
+model Review {
+  id            Int               @id @default(autoincrement())
+  applicationId Int               @unique
+  comment       String
+  recruiterId   Int
+  createdAt     DateTime          @default(now())
+
+  application   Application       @relation(fields: [applicationId], references: [id])
+  recruiter     User              @relation(fields: [recruiterId], references: [id])
 }
 
-model Review {
-  id         Int      @id @default(autoincrement())
-  comment    String
-  resumeId   Int
-  reviewerId Int
-  createdAt  DateTime @default(now())
-  resume     Resume   @relation(fields: [resumeId], references: [id])
-  reviewer   User     @relation(fields: [reviewerId], references: [id])
+// Ensure Application model has back relation
+model Application {
+  id            Int               @id @default(autoincrement())
+  resumeId      Int
+  jobId         Int
+  applicantId   Int
+  createdAt     DateTime          @default(now())
+  analysisId    Int?
+  status        ApplicationStatus @default(APPLIED)
+
+  analysis      Analysis?         @relation(fields: [analysisId], references: [id])
+  applicant     User              @relation(fields: [applicantId], references: [id])
+  job           Job               @relation(fields: [jobId], references: [id])
+  resume        Resume            @relation(fields: [resumeId], references: [id])
+  review        Review?           // one-to-one relation to Review
 }
 
 enum Role {

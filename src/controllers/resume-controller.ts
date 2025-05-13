@@ -125,6 +125,7 @@ export const deleteResume = AsyncErrorHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const userId = req.user?.id;
         const { resumeId } = req.params;
+        console.log('deleteResume', resumeId);
         if (!userId) return next(new ErrorHandler('Not authorized', 401));
         if (!resumeId || isNaN(Number(resumeId))) {
             return next(new ErrorHandler('Invalid resume ID', 400));

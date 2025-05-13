@@ -8,6 +8,39 @@ import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import openai from '../lib/openai';
 
+// Define interface for the resume analysis feedback structure
+interface ResumeFeedback {
+    summary: {
+        overallMatch: string;
+        briefAssessment: string;
+    };
+    keySkills: {
+        present: string[];
+        missing: string[];
+    };
+    experienceAnalysis: {
+        relevantExperience: string[];
+        gaps: string[];
+    };
+    educationFit: {
+        match: string;
+        details: string;
+    };
+    strengths: string[];
+    weaknesses: string[];
+    improvementSuggestions: string[];
+    keywordMatch: {
+        score: string;
+        missingKeywords: string[];
+    };
+    formattingFeedback: string;
+}
+
+/**
+ * Extracts text content from PDF and DOCX files
+ * @param filePath Path to the file
+ * @returns Extracted text content as string
+ */
 const extractTextFromFile = async (filePath: string): Promise<string> => {
     console.log(
         `[extractTextFromFile] Starting text extraction from file: ${filePath}`
@@ -65,6 +98,158 @@ const extractTextFromFile = async (filePath: string): Promise<string> => {
     );
 };
 
+/**
+ * Normalizes feedback structure from different AI model responses
+ * @param raw Raw feedback object from AI model
+ * @returns Normalized feedback object
+ */
+const normalizeAIFeedback = (raw: any): ResumeFeedback => {
+    try {
+        // Handle Claude-specific response format
+        if (raw.overallMatch || raw.overall_feedback) {
+            return {
+                summary: {
+                    overallMatch:
+                        raw.overallMatch || raw.summary?.overallMatch || '0',
+                    briefAssessment:
+                        raw.overall_feedback ||
+                        raw.summary?.briefAssessment ||
+                        'No summary provided',
+                },
+                keySkills: {
+                    present:
+                        raw.keySkills?.present || raw.skills?.present || [],
+                    missing:
+                        raw.keySkills?.missing || raw.skills?.missing || [],
+                },
+                experienceAnalysis: {
+                    relevantExperience:
+                        raw.experienceAnalysis?.relevantExperience ||
+                        raw.experience?.relevant ||
+                        [],
+                    gaps:
+                        raw.experienceAnalysis?.gaps ||
+                        raw.experience?.gaps ||
+                        [],
+                },
+                educationFit: {
+                    match:
+                        raw.educationFit?.match ||
+                        raw.education?.match ||
+                        'Not evaluated',
+                    details:
+                        raw.educationFit?.details ||
+                        raw.education?.details ||
+                        '',
+                },
+                strengths: raw.strengths || [],
+                weaknesses: raw.weaknesses || raw.areas_for_improvement || [],
+                improvementSuggestions:
+                    raw.improvementSuggestions || raw.action_items || [],
+                keywordMatch: {
+                    score:
+                        raw.keywordMatch?.score ||
+                        raw.keywords?.keyword_match_score ||
+                        'N/A',
+                    missingKeywords:
+                        raw.keywordMatch?.missingKeywords ||
+                        raw.keywords?.missing_keywords ||
+                        [],
+                },
+                formattingFeedback:
+                    raw.formattingFeedback || raw.formatting || '',
+            };
+        }
+
+        // If the response already matches our expected format
+        if (raw.summary && typeof raw.summary === 'object') {
+            return raw as ResumeFeedback;
+        }
+
+        // Default fallback structure
+        return {
+            summary: {
+                overallMatch: '0',
+                briefAssessment: 'Unable to process feedback properly',
+            },
+            keySkills: {
+                present: [],
+                missing: [],
+            },
+            experienceAnalysis: {
+                relevantExperience: [],
+                gaps: [],
+            },
+            educationFit: {
+                match: 'Not evaluated',
+                details: '',
+            },
+            strengths: [],
+            weaknesses: [],
+            improvementSuggestions: [],
+            keywordMatch: {
+                score: 'N/A',
+                missingKeywords: [],
+            },
+            formattingFeedback: '',
+        };
+    } catch (err) {
+        console.error('[normalizeAIFeedback] Error during normalization', err);
+        return {
+            summary: {
+                overallMatch: '0',
+                briefAssessment:
+                    'Unable to process feedback due to technical error',
+            },
+            keySkills: { present: [], missing: [] },
+            experienceAnalysis: { relevantExperience: [], gaps: [] },
+            educationFit: { match: 'Not evaluated', details: '' },
+            strengths: [],
+            weaknesses: [],
+            improvementSuggestions: [],
+            keywordMatch: { score: 'N/A', missingKeywords: [] },
+            formattingFeedback: '',
+        };
+    }
+};
+
+/**
+ * Parses AI model response content to extract valid JSON
+ * @param content Response content from AI model
+ * @returns Parsed JSON object
+ */
+const parseAIResponse = (content: string | object): any => {
+    if (typeof content === 'object') {
+        return content;
+    }
+
+    if (typeof content !== 'string') {
+        throw new Error('Invalid response format from AI model');
+    }
+
+    // Clean up the string in case it contains markdown code blocks
+    let cleanContent = content.trim();
+
+    // Remove any markdown code block indicators if present
+    if (cleanContent.includes('```')) {
+        // Extract content between json code blocks
+        const jsonMatch = cleanContent.match(/```(?:json)?\n([\s\S]*?)```/);
+        if (jsonMatch && jsonMatch[1]) {
+            cleanContent = jsonMatch[1].trim();
+        } else {
+            // Just remove all code block markers
+            cleanContent = cleanContent
+                .replace(/```json\n?/g, '')
+                .replace(/```/g, '');
+        }
+    }
+
+    return JSON.parse(cleanContent);
+};
+
+/**
+ * Analyzes a resume against an optional job description using AI
+ */
 export const analyzeResume = AsyncErrorHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         console.log(
@@ -72,11 +257,12 @@ export const analyzeResume = AsyncErrorHandler(
             {
                 resumeId: req.params.resumeId,
                 jobId: req.body.jobId,
+                applicationId: req.body.applicationId,
             }
         );
 
         const { resumeId } = req.params;
-        const { jobId } = req.body;
+        const { jobId, applicationId } = req.body;
 
         if (!resumeId || isNaN(Number(resumeId))) {
             console.error(
@@ -88,6 +274,7 @@ export const analyzeResume = AsyncErrorHandler(
         console.log(`[analyzeResume] Fetching resume with ID: ${resumeId}`);
         const resume = await prisma.resume.findUnique({
             where: { id: Number(resumeId) },
+            include: { owner: { select: { id: true } } },
         });
 
         if (!resume) {
@@ -96,11 +283,6 @@ export const analyzeResume = AsyncErrorHandler(
             );
             return next(new ErrorHandler('Resume not found', 404));
         }
-        console.log(`[analyzeResume] Resume found:`, {
-            id: resume.id,
-            fileName: resume.filePath,
-            ownerId: resume.ownerId,
-        });
 
         const filePath = path.join(
             __dirname,
@@ -109,8 +291,7 @@ export const analyzeResume = AsyncErrorHandler(
         );
         console.log(`[analyzeResume] Full resume file path: ${filePath}`);
 
-        console.log(`[analyzeResume] Extracting text from resume file`);
-        let resumeText;
+        let resumeText: string;
         try {
             resumeText = await extractTextFromFile(filePath);
             console.log(
@@ -150,144 +331,115 @@ export const analyzeResume = AsyncErrorHandler(
                 );
                 return next(new ErrorHandler('Job not found', 404));
             }
-            console.log(
-                `[analyzeResume] Job found. Description length: ${job.description.length} characters`
-            );
             effectiveJdText = job.description;
-        } else {
             console.log(
-                `[analyzeResume] No job ID provided, analyzing resume without job context`
+                `[analyzeResume] Job description length: ${effectiveJdText.length} characters`
             );
         }
 
-        // Structured prompt with clear JSON format instructions
-        const systemPrompt = `
-You are an expert ATS system and resume analyzer. Your task is to analyze a resume against a job description and provide structured feedback.
-
-Your analysis MUST be returned as valid JSON with the following structure:
-{
-    "summary": {
-        "overallMatch": "Score from 0-100",
-        "briefAssessment": "2-3 sentence overall assessment"
-    },
-    "keySkills": {
-        "present": ["List of relevant skills found in the resume"],
-        "missing": ["Important skills from job description missing in resume"]
-    },
-    "experienceAnalysis": {
-        "relevantExperience": ["List of experiences matching job requirements"],
-        "gaps": ["Areas where experience could be improved"]
-    },
-    "educationFit": {
-        "match": "How well education matches requirements (Strong/Moderate/Weak)",
-        "details": "Brief assessment of educational qualifications"
-    },
-    "strengths": ["List of 3-5 key strengths"],
-    "weaknesses": ["List of 3-5 areas for improvement"],
-    "improvementSuggestions": ["List of 3-5 specific actionable suggestions"],
-    "keywordMatch": {
-        "score": "Percentage of key job keywords found in resume",
-        "missingKeywords": ["Important keywords not found in resume"]
-    },
-    "formattingFeedback": "Assessment of resume structure and formatting"
-}
-
-Analyze thoroughly and provide specific, actionable feedback. Maintain a professional, constructive tone throughout.`;
-
+        const systemPrompt = `You are an expert ATS system and resume analyzer. Your task is to analyze a resume against a job description and provide structured feedback. Your analysis MUST be returned as valid JSON with the following structure: { "summary": { "overallMatch": "Score from 0-100", "briefAssessment": "2-3 sentence overall assessment" }, "keySkills": { "present": ["List of relevant skills found in the resume"], "missing": ["Important skills from job description missing in resume"] }, "experienceAnalysis": { "relevantExperience": ["List of experiences matching job requirements"], "gaps": ["Areas where experience could be improved"] }, "educationFit": { "match": "How well education matches requirements (Strong/Moderate/Weak)", "details": "Brief assessment of educational qualifications" }, "strengths": ["List of 3-5 key strengths"], "weaknesses": ["List of 3-5 areas for improvement"], "improvementSuggestions": ["List of 3-5 specific actionable suggestions"], "keywordMatch": { "score": "Percentage of key job keywords found in resume", "missingKeywords": ["Important keywords not found in resume"] }, "formattingFeedback": "Assessment of resume structure and formatting" } Analyze thoroughly and provide specific, actionable feedback. Maintain a professional, constructive tone throughout.`;
         const userPrompt = effectiveJdText
-            ? `Please analyze this resume against the following job description:\n\nJOB DESCRIPTION:\n${effectiveJdText}\n\nRESUME:\n${resumeText}`
-            : `Please analyze this resume without a specific job description:\n\n${resumeText}`;
+            ? `Analyze resume against job description:\nJOB DESCRIPTION:\n${effectiveJdText}\nRESUME:\n${resumeText}`
+            : `Analyze resume without job context:\nRESUME:\n${resumeText}`;
 
         console.log(
-            `[analyzeResume] Preparing to call OpenAI API for resume analysis`
+            `[analyzeResume] calling AI model with${effectiveJdText ? '' : 'out'} job context`
         );
-        console.log(
-            `[analyzeResume] Analysis type: ${effectiveJdText ? 'With job description' : 'Without job description'}`
-        );
-
         try {
-            console.log(`[analyzeResume] Sending request to OpenAI API`);
-            console.time('openai-api-call');
-
+            console.time('ai-api-call');
             const response = await openai.chat.completions.create({
-                model: 'anthropic/claude-3.7-sonnet',
+                model: 'google/gemini-2.0-flash-001',
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt },
                 ],
-                temperature: 0.2, // Lower temperature for more consistent, structured output
-                max_tokens: 4000,
-                response_format: { type: 'json_object' }, // Explicitly request JSON format
+                temperature: 0.2,
+                max_tokens: 2500,
+                response_format: { type: 'json_object' },
             });
+            console.timeEnd('ai-api-call');
+            console.log(`[analyzeResume] AI model response received`);
 
-            console.timeEnd('openai-api-call');
-            console.log(`[analyzeResume] OpenAI API response received`);
-
-            const feedbackRaw =
-                response.choices[0]?.message?.content ||
-                '{"error": "No analysis available."}';
-
+            // Safely extract the content from the response
+            const messageContent = response.choices?.[0]?.message?.content;
             console.log(
-                `[analyzeResume] Raw feedback length: ${feedbackRaw.length} characters`
+                `[analyzeResume] Extracted message content: ${messageContent}`
             );
+            if (!messageContent) {
+                console.error('[analyzeResume] No content returned from API');
+                throw new Error('No analysis content returned');
+            }
 
-            let feedback;
-
+            let rawFeedback: any;
             try {
-                // Parse the response to ensure it's valid JSON
-                console.log(`[analyzeResume] Parsing JSON response`);
-                feedback = JSON.parse(feedbackRaw);
-                console.log(`[analyzeResume] JSON parsing successful`);
-            } catch (err) {
+                // Parse the response content safely
+                rawFeedback = parseAIResponse(messageContent);
+                console.log('[analyzeResume] Successfully parsed response');
+            } catch (error: any) {
                 console.error(
-                    `[analyzeResume] Failed to parse JSON response:`,
-                    err
+                    '[analyzeResume] Failed to parse response:',
+                    error
                 );
-                console.error(`[analyzeResume] Raw response:`, feedbackRaw);
-                feedback = {
-                    error: 'Failed to generate proper analysis format',
-                    rawResponse: feedbackRaw,
+                rawFeedback = {
+                    error: 'Failed to parse response as JSON',
+                    summary: {
+                        overallMatch: '0',
+                        briefAssessment:
+                            'Unable to analyze resume due to technical error.',
+                    },
                 };
             }
 
-            console.log(`[analyzeResume] Creating analysis record in database`);
+            // Normalize the feedback to ensure consistent structure
+            const feedback = normalizeAIFeedback(rawFeedback);
+
+            // Create an analysis record in the database
             const analysisRecord = await prisma.analysis.create({
                 data: {
-                    resumeId: resume.id,
-                    jobId: effectiveJdText && jobId ? Number(jobId) : undefined,
+                    resumeId: Number(resumeId),
+                    jobId: jobId ? Number(jobId) : undefined,
+                    score: Number(feedback.summary.overallMatch),
                     jdText: effectiveJdText,
                     feedback: JSON.stringify(feedback),
-                    applicantId: resume.ownerId,
+                    applicantId: resume.owner?.id || resume.ownerId,
+                },
+            });
+
+            const application = await prisma.application.findUnique({
+                where: { id: Number(applicationId) },
+                include: { job: true, resume: true },
+            });
+            if (!application) {
+                console.error(
+                    `[analyzeResume] Application not found with ID: ${applicationId}`
+                );
+                return next(new ErrorHandler('Application not found', 404));
+            }
+
+            // Update the application with the analysis ID
+            await prisma.application.update({
+                where: { id: Number(applicationId) },
+                data: {
+                    analysisId: analysisRecord.id,
                 },
             });
             console.log(
-                `[analyzeResume] Analysis record created with ID: ${analysisRecord.id}`
+                `[analyzeResume] Application updated with analysis ID: ${analysisRecord.id}`
             );
 
-            console.log(
-                `[analyzeResume] Sending successful response to client`
-            );
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 analysisId: analysisRecord.id,
                 feedback,
             });
         } catch (error: any) {
-            console.error(
-                `[analyzeResume] Error during OpenAI API call:`,
-                error
+            console.error('[analyzeResume] Analysis failed:', error);
+            return next(
+                new ErrorHandler(
+                    `Failed to analyze resume: ${error.message}`,
+                    500
+                )
             );
-            if (error.response) {
-                console.error(
-                    `[analyzeResume] OpenAI API error status:`,
-                    error.response.status
-                );
-                console.error(
-                    `[analyzeResume] OpenAI API error data:`,
-                    error.response.data
-                );
-            }
-            return next(new ErrorHandler('Failed to analyze resume', 500));
         }
     }
 );

@@ -9,6 +9,13 @@ export const applyForJob = AsyncErrorHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const { jobId } = req.params;
         const applicantId = req.user?.id;
+        const role = req.user?.role;
+
+        if (role === 'RECRUITER') {
+            return next(
+                new ErrorHandler('Recruiters Cannot Apply to a Job', 401)
+            );
+        }
         if (!jobId || isNaN(Number(jobId))) {
             return next(new ErrorHandler('Invalid job ID', 400));
         }
@@ -54,7 +61,12 @@ export const getApplication = AsyncErrorHandler(
         }
         const application = await prisma.application.findUnique({
             where: { id: Number(applicationId) },
-            include: { job: true, resume: true },
+            include: {
+                job: true,
+                resume: true,
+                analysis: true,
+                applicant: true,
+            },
         });
         if (!application) {
             return next(new ErrorHandler('Application not found', 404));
