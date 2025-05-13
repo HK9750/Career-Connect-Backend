@@ -68,7 +68,7 @@ model Review {
   recruiterId   Int
   createdAt     DateTime          @default(now())
 
-  application   Application       @relation(fields: [applicationId], references: [id])
+  application   Application       @relation(fields: [applicationId], references: [id],onDelete: Cascade)
   recruiter     User              @relation(fields: [recruiterId], references: [id])
 }
 

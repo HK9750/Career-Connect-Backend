@@ -144,14 +144,8 @@ export const getReview = AsyncErrorHandler(
         const review = await prisma.review.findUnique({
             where: { applicationId: Number(applicationId) },
             include: {
-                recruiter: { select: { id: true, username: true } },
-                application: {
-                    select: {
-                        id: true,
-                        applicantId: true,
-                        resume: { select: { id: true, title: true } },
-                    },
-                },
+                recruiter: true,
+                application: true,
             },
         });
         if (!review) {
@@ -167,6 +161,8 @@ export const getReview = AsyncErrorHandler(
                 new ErrorHandler('Not authorized to view this review', 403)
             );
         }
+
+        console.log('Review:', review);
 
         res.status(200).json({ success: true, data: review });
     }
