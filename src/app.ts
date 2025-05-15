@@ -8,6 +8,7 @@ import jobRoutes from './routes/job-routes';
 import reviewRoutes from './routes/review-routes';
 import analysisRoutes from './routes/analysis-routes';
 import applicationRoutes from './routes/application-routes';
+import dashboardRoutes from './routes/dashboard-routes';
 import errorMiddleware from './middlewares/error-middleware';
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/v1/job', jobRoutes);
 app.use('/api/v1/review', reviewRoutes);
 app.use('/api/v1/analysis', analysisRoutes);
 app.use('/api/v1/application', applicationRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 app.use(errorMiddleware);
 

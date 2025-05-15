@@ -70,6 +70,7 @@ export const listJobs = AsyncErrorHandler(
 
 export const getJob = AsyncErrorHandler(
     async (req: Request, res: Response, next: NextFunction) => {
+        console.log('getJob');
         const { jobId } = req.params;
         if (!jobId || isNaN(Number(jobId)))
             return next(new ErrorHandler('Invalid job ID', 400));
